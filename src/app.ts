@@ -1,19 +1,46 @@
-// // autobind decorator (alternative to binding 'this' with .bind(this)):
-// function autobind(
-//   _: any, // _ === 'target' but we do not use it
-//   _2: string, // _2 === 'methodName' but we do not use it
-//   descriptor: PropertyDescriptor
-// ) {
-//     const originalMethod = descriptor.value;
-//     const adjDescriptor: PropertyDescriptor = {
-//         configurable: true,
-//         get(){
-//             const boundFn = originalMethod.bind(this)
-//             return boundFn;
-//         }
-//     }
-//     return adjDescriptor;
-// }
+// Validation
+interface Validatable {
+    value: string | number;
+    required?: boolean;
+    minLength?: number;
+    maxLength?: number;
+    min?: number;
+    max?: number;
+  }
+
+  function validate(validatableInput: Validatable) {
+    let isValid = true;
+    if (validatableInput.required) {
+      isValid = isValid && validatableInput.value.toString().trim().length !== 0;
+    }
+    if (
+      validatableInput.minLength != null &&
+      typeof validatableInput.value === 'string'
+    ) {
+      isValid =
+        isValid && validatableInput.value.length >= validatableInput.minLength;
+    }
+    if (
+      validatableInput.maxLength != null &&
+      typeof validatableInput.value === 'string'
+    ) {
+      isValid =
+        isValid && validatableInput.value.length <= validatableInput.maxLength;
+    }
+    if (
+      validatableInput.min != null &&
+      typeof validatableInput.value === 'number'
+    ) {
+      isValid = isValid && validatableInput.value >= validatableInput.min;
+    }
+    if (
+      validatableInput.max != null &&
+      typeof validatableInput.value === 'number'
+    ) {
+      isValid = isValid && validatableInput.value <= validatableInput.max;
+    }
+    return isValid;
+  }
 
 class ProjectInput {
   templateElement: HTMLTemplateElement;
@@ -57,14 +84,58 @@ class ProjectInput {
     this.attach();
   }
 
-//   @autobind
-  private submitHandler(event: Event) {
-    event.preventDefault();
-    console.log(this.titleInputElement.value);
+  private gatherUserInput(): [string, string, number] | void {
+    const enteredTitle = this.titleInputElement.value;
+    const enteredDescription = this.descriptionInputElement.value;
+    const enteredPeople = this.peopleInputElement.value;
+
+    const titleValidatable: Validatable = {
+        value: enteredTitle,
+        required: true
+      };
+      const descriptionValidatable: Validatable = {
+        value: enteredDescription,
+        required: true,
+        minLength: 5
+      };
+      const peopleValidatable: Validatable = {
+        value: parseInt(enteredPeople),
+        required: true,
+        min: 1,
+        max: 5
+      };
+  
+      if (
+        !validate(titleValidatable) ||
+        !validate(descriptionValidatable) ||
+        !validate(peopleValidatable)
+      ) {
+      alert("Invalid input");
+      return;
+    } else {
+      return [enteredTitle, enteredDescription, parseInt(enteredPeople)];
+    }
   }
 
-  private configure(){
-      this.element.addEventListener('submit', this.submitHandler.bind(this)) // without binding 'this' in submitHandler does not point to the instance of the class but to the current target of the event
+  private clearInputs() {
+    this.titleInputElement.value = "";
+    this.descriptionInputElement.value = "";
+    this.peopleInputElement.value = "";
+  }
+
+  private submitHandler(event: Event) {
+    event.preventDefault();
+    // console.log(this.titleInputElement.value);
+    const userInput = this.gatherUserInput();
+    if (Array.isArray(userInput)) {
+      const [title, description, people] = userInput;
+      console.log(title, description, people);
+      this.clearInputs()
+    }
+  }
+
+  private configure() {
+    this.element.addEventListener("submit", this.submitHandler.bind(this)); // without binding 'this' in submitHandler does not point to the instance of the class but to the current target of the event
   }
 
   private attach() {
