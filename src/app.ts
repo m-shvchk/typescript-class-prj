@@ -1,3 +1,59 @@
+// Project Type
+enum ProjectStatus {
+  Active,
+  Finished
+}
+
+class Project {
+  constructor(
+    public id: string,
+    public title: string,
+    public description: string,
+    public people: number,
+    public status: ProjectStatus
+  ) {}
+}
+
+// Project State Management
+type Listener = (items: Project[]) => void;
+
+class ProjectState {
+  private listeners: Listener[] = []; // array of functions that render the list
+  private projects: Project[] = []; // array of projects to render
+  private static instance: ProjectState;
+
+  private constructor() {}
+
+  static getInstance() {
+    if (this.instance) {
+      return this.instance;
+    }
+    this.instance = new ProjectState();
+    return this.instance;
+  }
+
+  addListener(listenerFn: Listener) {
+    this.listeners.push(listenerFn);
+  }
+
+  addProject(title: string, description: string, numOfPeople: number) {
+    const newProject = new Project(
+      Math.random().toString(),
+      title,
+      description,
+      numOfPeople,
+      ProjectStatus.Active
+    );
+    this.projects.push(newProject);
+    // when the new project is added iterate through listeners array and call it with array of projects that will be rendered:
+    for (const listenerFn of this.listeners) { 
+      listenerFn(this.projects.slice()); // passing shallow copy of projects array
+    }
+  }
+}
+
+const projectState = ProjectState.getInstance(); // a fancy way to do 'new ProjectState'
+
 // Validation
 interface Validatable {
   value: string | number;
@@ -8,7 +64,7 @@ interface Validatable {
   max?: number;
 }
 
-function validate(validatableInput: Validatable) {
+function validate(validatableInput: Validatable) { // function for input validation
   let isValid = true;
   if (validatableInput.required) {
     isValid = isValid && validatableInput.value.toString().trim().length !== 0;
@@ -47,21 +103,54 @@ class ProjectList {
   templateElement: HTMLTemplateElement;
   hostElement: HTMLDivElement;
   element: HTMLElement; // section element -> there is no HTMLSectionElement type
+  assignedProjects: Project[];
 
   constructor(private type: "active" | "finished") {
     this.templateElement = document.getElementById(
       "project-list"
     )! as HTMLTemplateElement;
+    // Gives the access to the template element. "!" - we are sure it will never hold null
+    //'as HTMLTemplateElement' -> what we fetch by ID will be of that type
+
     this.hostElement = document.getElementById("app")! as HTMLDivElement;
+    // element where the template is to be rendered
+    this.assignedProjects = [];
 
     const importedNode = document.importNode(
       this.templateElement.content,
       true
     );
+    // importNode copies an element from one doc to paste it later in another doc (true - node with all descendants) -> gives reference to the content of the template
+
+
     this.element = importedNode.firstElementChild as HTMLElement;
     this.element.id = `${this.type}-projects`;
+
+    // call addListener on (global) projectState instance. Add an anonymous arrow function (that, when called, will render projects) into listeners array:
+    projectState.addListener((projects: Project[]) => {
+      // filter to render projects either to active or to finished list:
+      const relevantProjects = projects.filter(prj => { 
+        if (this.type === 'active') {
+          return prj.status === ProjectStatus.Active;
+        }
+        return prj.status === ProjectStatus.Finished;
+      });
+      this.assignedProjects = relevantProjects;
+      this.renderProjects();
+    });  
+
     this.attach();
     this.renderContent();
+  }
+
+  private renderProjects() {
+    const listEl = document.getElementById(`${this.type}-projects-list`)! as HTMLUListElement;
+    listEl.innerHTML = ''; // !!! clear before render to avoid dublicates 
+    for (const prjItem of this.assignedProjects) {
+      const listItem = document.createElement('li');
+      listItem.textContent = prjItem.title;
+      listEl.appendChild(listItem)
+    }
   }
 
   private renderContent() {
@@ -164,7 +253,8 @@ class ProjectInput {
     const userInput = this.gatherUserInput();
     if (Array.isArray(userInput)) {
       const [title, description, people] = userInput;
-      console.log(title, description, people);
+      // console.log(title, description, people);
+      projectState.addProject(title, description, people); // projectState was declared globally
       this.clearInputs();
     }
   }
